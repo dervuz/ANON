@@ -1,9 +1,8 @@
-
 import asyncio
 import logging
+import os
 import re
 import time
-import io
 from collections import deque
 from typing import Callable, Any, Awaitable
 
@@ -28,10 +27,8 @@ logger = logging.getLogger(__name__)
 #  КОНФИГ
 # ═══════════════════════════════════════════════════════════════
 
-BOT_TOKEN    = "8683488542:AAFJFiZGl5af_fYuowAnz9Xburd-RGZrI3g"
-ADMIN_IDS    = [6708567261]          # вставь свой Telegram ID
-
-import os
+BOT_TOKEN    = os.getenv("BOT_TOKEN", "8683488542:AAFJFiZGl5af_fYuowAnz9Xburd-RGZrI3g")
+ADMIN_IDS    = [int(i) for i in os.getenv("ADMIN_IDS", "6708567261").split(",")]
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:yagay@localhost:5432/postgres")
 
 REQUIRED_CHANNEL     = "@ANONCASES"
@@ -57,7 +54,6 @@ pool: asyncpg.Pool | None = None
 
 async def init_db():
     global pool
-    import os
     ssl_setting = "require" if os.getenv("RAILWAY_ENVIRONMENT") else None
     pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_setting)
     async with pool.acquire() as conn:
@@ -848,6 +844,11 @@ RELAY_TYPES = F.content_type.in_({
 @router.message(RELAY_TYPES)
 async def relay_message(message: Message, bot: Bot, state: FSMContext):
     user_id = message.from_user.id
+
+    # Команды не пересылаем
+    if message.text and message.text.startswith("/"):
+        return
+
     await upsert_user(user_id, message.from_user.username, message.from_user.full_name)
 
     if await is_banned(user_id):
