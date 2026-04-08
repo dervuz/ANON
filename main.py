@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN    = "8683488542:AAFJFiZGl5af_fYuowAnz9Xburd-RGZrI3g"
 ADMIN_IDS    = [6708567261]          # вставь свой Telegram ID
-DATABASE_URL = DATABASE_URL = DATABASE_URL = ("postgresql://postgres:yagay@localhost:5432/postgres")
+
+import os
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:yagay@localhost:5432/postgres")
 
 REQUIRED_CHANNEL     = "@ANONCASES"
 REQUIRED_CHANNEL_URL = "https://t.me/ANONCASES"
@@ -55,7 +57,9 @@ pool: asyncpg.Pool | None = None
 
 async def init_db():
     global pool
-    pool = await asyncpg.create_pool(DATABASE_URL)
+    import os
+    ssl_setting = "require" if os.getenv("RAILWAY_ENVIRONMENT") else None
+    pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_setting)
     async with pool.acquire() as conn:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
