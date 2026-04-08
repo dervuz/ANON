@@ -439,30 +439,38 @@ class SubscriptionMiddleware(BaseMiddleware):
     ) -> Any:
         bot = data["bot"]
 
+        # Определяем user_id и цель для ответа
         if isinstance(event, Message):
             user_id = event.from_user.id
             reply_target = event
         elif isinstance(event, CallbackQuery):
             user_id = event.from_user.id
             reply_target = event.message
+            # check_sub всегда пропускаем — иначе зацикливание
             if event.data == "check_sub":
                 return await handler(event, data)
         else:
             return await handler(event, data)
 
+        # Админы всегда проходят без проверки подписки
         if user_id in ADMIN_IDS:
             return await handler(event, data)
 
+        # Проверяем подписку на канал
         try:
             member = await bot.get_chat_member(REQUIRED_CHANNEL, user_id)
             subscribed = member.status not in ("left", "kicked", "banned")
         except Exception:
-            subscribed = True   # если бот не в канале — пропускаем
+            # Бот не админ канала или канал не найден — пропускаем проверку
+            subscribed = True
 
         if not subscribed:
-            await reply_target.answer(
+            text = (
                 "📢 *Для использования бота нужно подписаться на канал* @ANONCASES\n\n"
-                "После подписки нажми кнопку ✅ Я подписался",
+                "После подписки нажми кнопку ✅ Я подписался"
+            )
+            await reply_target.answer(
+                text,
                 parse_mode="Markdown",
                 reply_markup=kb_subscribe(),
             )
@@ -929,7 +937,9 @@ async def relay_message(message: Message, bot: Bot, state: FSMContext):
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
+    logger.info(f"[ADMIN] user_id={message.from_user.id}, ADMIN_IDS={ADMIN_IDS}")
     if not is_admin(message.from_user.id):
+        await message.answer("❌ У тебя нет прав администратора.")
         return
     await message.answer("🛡 *Админ панель*", parse_mode="Markdown", reply_markup=kb_admin_main())
 
@@ -1296,6 +1306,8 @@ async def admin_cb_close_report(call: CallbackQuery):
 async def main():
     await init_db()
     logger.info("✅ БД инициализирована")
+    logger.info(f"🔑 ADMIN_IDS: {ADMIN_IDS}")
+    logger.info(f"📢 REQUIRED_CHANNEL: {REQUIRED_CHANNEL}")
 
     bot = Bot(token=BOT_TOKEN)
     dp  = Dispatcher(storage=MemoryStorage())
